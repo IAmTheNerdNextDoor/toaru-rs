@@ -4,25 +4,55 @@
 use core::panic::PanicInfo;
 
 const SYS_WRITE: usize = 4;
+const SYS_EXT: usize = 0;
 const STDOUT: usize = 1;
-
-static HELLO: &[u8] = b"If you are seeing this, Rust is working on ToaruOS.\n";
+static mut BUF: [u8; 20] = [0u8; 20];
 
 #[unsafe(no_mangle)]
-pub unsafe fn _start() {
-    unsafe { 
-        syscall(
-            SYS_WRITE,
-            STDOUT,
-            HELLO.as_ptr() as usize,
-            HELLO.len(),
-        );
-    }
-    loop {}
+fn _start() {
+    write(STDOUT, b"Welcome to Rust on ToaruOS!\n");
+    let number = 42;
+    write(STDOUT, b"Number is: ");
+    print_number(number);
+    write(STDOUT, b"\n");
+    exit(0);
 }
 
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! {
+    loop {}
+}
+
+
+fn print_number(mut n: usize) {
+    let mut i = 20;
+
+    if n == 0 {
+        write(STDOUT, b"0");
+        return;
+    }
+
+    unsafe {
+        while n > 0 && i > 0 {
+            i -= 1;
+            BUF[i] = b'0' + (n % 10) as u8;
+            n /= 10;
+        }
+    
+        write(STDOUT, &BUF[i..]);
+    }
+}
+
+fn write(fd: usize, buf: &[u8]) -> usize {
+    unsafe {
+        syscall(SYS_WRITE, fd, buf.as_ptr() as usize, buf.len()) 
+    }
+}
+
+fn exit(code: usize) -> ! {
+    unsafe {
+        syscall(SYS_EXT, code, 0, 0);
+    }
     loop {}
 }
 
