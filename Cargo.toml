@@ -1,6 +1,6 @@
 [package]
 name = "toaru-rs"
-version = "0.0.1"
+version = "0.0.2"
 edition = "2024"
 description = "A project aimed to bring Rust applications to ToaruOS"
 repository = "https://github.com/IAmTheNerdNextDoor/toaru-rs"

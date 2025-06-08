@@ -1,6 +1,6 @@
 # toaru-rs
 
-toaru-rs is a project aimed to bring Rust applications to ToaruOS. So far, Rust and inline Assembly Rust code can run on ToaruOS (allowing for SYS_WRITE for writing text and SYS_EXT for exit codes to be used with write and exit commands).
+toaru-rs is a project aimed to bring Rust applications to ToaruOS.
 
 Contributions are welcome.
 

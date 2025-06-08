@@ -1,74 +1,79 @@
 #![no_std]
 #![no_main]
+#![feature(alloc_error_handler)]
 
+extern crate alloc;
+
+mod syscall;
+mod syscall_numbers;
+mod toaru;
+mod file;
+mod allocator;
+
+use crate::toaru::{write, exit};
+use crate::allocator::init_allocator;
 use core::panic::PanicInfo;
+use core::fmt::{self};
+use alloc::boxed::Box;
+use alloc::vec;
 
-const SYS_WRITE: usize = 4;
-const SYS_EXT: usize = 0;
+struct Stdout;
+impl fmt::Write for Stdout {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        write(1, s.as_bytes());
+        Ok(())
+    }
+}
+
+macro_rules! print {
+    ($($arg:tt)*) => {{
+        let _ = core::fmt::write(&mut Stdout, format_args!($($arg)*));
+    }};
+}
+
+macro_rules! println {
+    () => (print!("\n"));
+    ($fmt:expr) => (print!(concat!($fmt, "\n")));
+    ($fmt:expr, $($arg:tt)*) => (print!(concat!($fmt, "\n"), $($arg)*));
+}
+
 const STDOUT: usize = 1;
-static mut BUF: [u8; 20] = [0u8; 20];
 
 #[unsafe(no_mangle)]
-fn _start() {
-    write(STDOUT, b"Welcome to Rust on ToaruOS!\n");
-    let number = 42;
-    write(STDOUT, b"Number is: ");
-    print_number(number);
-    write(STDOUT, b"\n");
-    exit(0);
+unsafe fn _start() {
+    unsafe {
+        init_allocator();
+        println!("Welcome to Rust on ToaruOS!");
+
+        let number = 42;
+        print!("Number is: {}\n", number);
+
+        if let Some(mut f) = crate::file::File::open("/etc/motd", 0, 0) {
+            let mut buffer = vec![0u8; 256];
+            let n = f.read(&mut buffer);
+            write(STDOUT, &buffer[..n]);
+            f.close();
+        }
+
+        let a = Box::new(1234usize);
+        let b = Box::new(5678usize);
+        let c = Box::new(0xDEADBEEFusize);
+
+        println!("Testing multiple Box allocs:");
+        println!("a = {}", *a);
+        println!("b = {}", *b);
+        println!("c = {:#X}", *c);
+
+        exit(0);
+    }
 }
 
 #[panic_handler]
-fn panic(_info: &PanicInfo) -> ! {
-    loop {}
-}
-
-
-fn print_number(mut n: usize) {
-    let mut i = 20;
-
-    if n == 0 {
-        write(STDOUT, b"0");
-        return;
-    }
-
-    unsafe {
-        while n > 0 && i > 0 {
-            i -= 1;
-            BUF[i] = b'0' + (n % 10) as u8;
-            n /= 10;
-        }
-    
-        write(STDOUT, &BUF[i..]);
-    }
-}
-
-fn write(fd: usize, buf: &[u8]) -> usize {
-    unsafe {
-        syscall(SYS_WRITE, fd, buf.as_ptr() as usize, buf.len()) 
-    }
-}
-
-fn exit(code: usize) -> ! {
-    unsafe {
-        syscall(SYS_EXT, code, 0, 0);
+fn panic(info: &PanicInfo) -> ! {
+    if let Some(loc) = info.location() {
+        println!("Panic at {}:{}: {}", loc.file(), loc.line(), info);
+    } else {
+        println!("Panic: {}", info);
     }
     loop {}
 }
-
-#[inline(always)]
-unsafe fn syscall(num: usize, arg1: usize, arg2: usize, arg3: usize) -> usize {
-    let ret: usize;
-    unsafe { 
-        core::arch::asm!(
-            "syscall",
-            in("rax") num,
-            in("rdi") arg1,
-            in("rsi") arg2,
-            in("rdx") arg3,
-            lateout("rax") ret,
-        );
-        ret
-   }
-}
-
